@@ -411,7 +411,7 @@ class PushHandler:
                  'to': after
              }
              response = requests.get(url, headers=headers, params=params, verify=False)
-             logger.debug(f"Get compare response from Yunxiao {url} params:{params}: {response.status_code}")
+             logger.debug(f"Get compare response from Yunxiao {url} headers:{headers}  params:{params}: {response.status_code}")
              if response.status_code == 200:
                  try:
                      if not response.text:
