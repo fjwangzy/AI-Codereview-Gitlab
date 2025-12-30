@@ -101,13 +101,17 @@ class MergeRequestHandler:
 
             # 检查请求是否成功
             if response.status_code == 200:
-                changes = response.json().get('changes', [])
-                if changes:
-                    return changes
-                else:
-                    logger.info(
-                        f"Changes is empty, retrying in {retry_delay} seconds... (attempt {attempt + 1}/{max_retries}), URL: {url}")
-                    time.sleep(retry_delay)
+                try:
+                    changes = response.json().get('changes', [])
+                    if changes:
+                        return changes
+                    else:
+                        logger.info(
+                            f"Changes is empty, retrying in {retry_delay} seconds... (attempt {attempt + 1}/{max_retries}), URL: {url}")
+                        time.sleep(retry_delay)
+                except ValueError as e:
+                    logger.error(f"Failed to decode changes JSON from GitLab fallback: {e}, Response: {response.text}")
+                    return []
             else:
                 logger.warn(f"Failed to get changes from Yunxiao/GitLab (URL: {url}): {response.status_code}, {response.text}")
                 return []
