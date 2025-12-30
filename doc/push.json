@@ -1,0 +1,32 @@
+{
+  "total_commits_count": 1,
+  "user_email": "45187355@qq.com",
+  "before": "3cf0617ef049087dc786404d6c4fa1eed79acc6f",
+  "user_extern_uid": "66d29499ab4680a50304750b",
+  "user_name": "\u5c27\u8c37@\u84dd\u5929\u667a\u901a",
+  "checkout_sha": "aae2d4c37ab0213963d34a4ac6a92d46b60eb4c1",
+  "repository": {
+    "name": "benyue-mini",
+    "visibility_level": 0,
+    "git_http_url": "https://codeup.aliyun.com/68ef12cbbb64aae5519624bb/benyue-mini.git",
+    "git_ssh_url": "git@codeup.aliyun.com:68ef12cbbb64aae5519624bb/benyue-mini.git",
+    "url": "git@codeup.aliyun.com:68ef12cbbb64aae5519624bb/benyue-mini.git",
+    "homepage": "https://codeup.aliyun.com/68ef12cbbb64aae5519624bb/benyue-mini"
+  },
+  "object_kind": "push",
+  "ref": "refs/heads/master",
+  "is_force_push": false,
+  "project_id": 5910580,
+  "user_id": 1429765,
+  "commits": [
+    {
+      "author": { "name": "fjwangzy", "email": "45187355@qq.com" },
+      "id": "aae2d4c37ab0213963d34a4ac6a92d46b60eb4c1",
+      "message": "feat: \u6d4b\u8bd5code review \u6d41\u7a0b\n",
+      "url": "https://codeup.aliyun.com/68ef12cbbb64aae5519624bb/benyue-mini/commit/aae2d4c37ab0213963d34a4ac6a92d46b60eb4c1",
+      "timestamp": "2025-12-29T20:48:42.000+08:00"
+    }
+  ],
+  "after": "aae2d4c37ab0213963d34a4ac6a92d46b60eb4c1",
+  "aliyun_pk": "1501550877188936"
+}

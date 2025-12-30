@@ -13,7 +13,10 @@ from biz.queue.worker import (
     handle_github_pull_request_event,
     handle_github_push_event,
     handle_gitea_pull_request_event,
-    handle_gitea_push_event
+    handle_gitea_pull_request_event,
+    handle_gitea_push_event,
+    handle_yunxiao_push_event,
+    handle_yunxiao_merge_request_event
 )
 from biz.utils.log import logger
 from biz.utils.queue import handle_queue
@@ -39,6 +42,8 @@ def handle_webhook():
             return handle_gitea_webhook(webhook_source_gitea, data)
         elif webhook_source_github:  # GitHub webhook
             return handle_github_webhook(webhook_source_github, data)
+        elif data.get('aliyun_pk') or 'codeup.aliyun.com' in data.get('repository', {}).get('url', ''): # Yunxiao webhook
+            return handle_yunxiao_webhook(data)
         else:  # GitLab webhook
             return handle_gitlab_webhook(data)
     else:
@@ -156,5 +161,48 @@ def handle_gitea_webhook(event_type, data):
             {'message': f'Gitea request received(event_type={event_type}), will process asynchronously.'}), 200
     else:
         error_message = f'Only pull_request and push events are supported for Gitea webhook, but received: {event_type}.'
+        logger.error(error_message)
+        return jsonify(error_message), 400
+
+
+def handle_yunxiao_webhook(data):
+    """
+    处理 Yunxiao Webhook
+    """
+    object_kind = data.get("object_kind")
+
+    yunxiao_url = os.getenv('YUNXIAO_URL') or 'https://codeup.aliyun.com'
+    # 优先从环境变量获取，如果没有，则从请求头获取
+    yunxiao_token = os.getenv('YUNXIAO_ACCESS_TOKEN') or request.headers.get('X-Yunxiao-Token')
+    # 如果yunxiao_token为空，返回错误
+    if not yunxiao_token:
+        # 兼容使用 GITLAB_ACCESS_TOKEN 如果 YUNXIAO_ACCESS_TOKEN 未设置，
+        # 因为 Codeup 兼容 GitLab，用户可能复用配置
+        yunxiao_token = os.getenv('GITLAB_ACCESS_TOKEN')
+
+    if not yunxiao_token:
+        return jsonify({'message': 'Missing Yunxiao access token'}), 400
+
+    yunxiao_url_slug = slugify_url(yunxiao_url)
+
+    # 打印整个payload数据
+    logger.info(f'Received Yunxiao event: {object_kind}')
+    logger.info(f'Payload: {json.dumps(data)}')
+
+    # 处理Merge Request Hook
+    if object_kind == "merge_request":
+        # 创建一个新进程进行异步处理
+        handle_queue(handle_yunxiao_merge_request_event, data, yunxiao_token, yunxiao_url, yunxiao_url_slug)
+        # 立马返回响应
+        return jsonify(
+            {'message': f'Request received(object_kind={object_kind}), will process asynchronously.'}), 200
+    elif object_kind == "push":
+        # 创建一个新进程进行异步处理
+        handle_queue(handle_yunxiao_push_event, data, yunxiao_token, yunxiao_url, yunxiao_url_slug)
+        # 立马返回响应
+        return jsonify(
+            {'message': f'Request received(object_kind={object_kind}), will process asynchronously.'}), 200
+    else:
+        error_message = f'Only merge_request and push events are supported for Yunxiao, but received: {object_kind}.'
         logger.error(error_message)
         return jsonify(error_message), 400

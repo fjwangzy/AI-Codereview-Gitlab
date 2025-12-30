@@ -1,0 +1,63 @@
+{
+  "object_attributes": {
+    "work_in_progress": false,
+    "last_commit": {
+      "author": { "name": "fjwangzy", "email": "45187355@qq.com" },
+      "id": "100362a4b4c529bf9c2af448117190a4756c098c",
+      "message": "feat: \u6d4b\u8bd5code review \u6d41\u7a0b\n",
+      "url": "https://codeup.aliyun.com/68ef12cbbb64aae5519624bb/benyue-mini/commits/100362a4b4c529bf9c2af448117190a4756c098c",
+      "timestamp": "2025-12-30T09:02:06+08:00"
+    },
+    "local_id": 8,
+    "created_at": "2025-12-29T21:21:58+08:00",
+    "description": "{\"htmlValue\":\"\u6d4b\u8bd5ai review\",\"jsonMLValue\":[]}",
+    "target_branch": "sky",
+    "source_type": "BRANCH",
+    "source": {
+      "web_url": "https://codeup.aliyun.com/68ef12cbbb64aae5519624bb/benyue-mini",
+      "name": "benyue-mini",
+      "namespace": "68ef12cbbb64aae5519624bb",
+      "ssh_url": "git@codeup.aliyun.com:68ef12cbbb64aae5519624bb/benyue-mini.git",
+      "visibility_level": 0,
+      "http_url": "https://codeup.aliyun.com/68ef12cbbb64aae5519624bb/benyue-mini.git"
+    },
+    "source_project_id": 5910580,
+    "title": "feat: \u6d4b\u8bd5code review \u6d41\u7a0b",
+    "author_aliyun_pk": "1501550877188936",
+    "url": "https://codeup.aliyun.com/68ef12cbbb64aae5519624bb/benyue-mini/change/8",
+    "source_branch": "master",
+    "target": {
+      "web_url": "https://codeup.aliyun.com/68ef12cbbb64aae5519624bb/benyue-mini",
+      "name": "benyue-mini",
+      "namespace": "68ef12cbbb64aae5519624bb",
+      "ssh_url": "git@codeup.aliyun.com:68ef12cbbb64aae5519624bb/benyue-mini.git",
+      "visibility_level": 0,
+      "http_url": "https://codeup.aliyun.com/68ef12cbbb64aae5519624bb/benyue-mini.git"
+    },
+    "updated_at": "2025-12-29T21:21:58+08:00",
+    "project_id": 5910580,
+    "merge_status": "can_be_merged",
+    "action": "update",
+    "state": "opened",
+    "author_id": 1429765,
+    "biz_id": "25e19a6cc1424bbead56df2cf7aaf335",
+    "target_project_id": 5910580,
+    "is_update_by_push": true
+  },
+  "repository": {
+    "name": "benyue-mini",
+    "git_http_url": "https://codeup.aliyun.com/68ef12cbbb64aae5519624bb/benyue-mini.git",
+    "git_ssh_url": "git@codeup.aliyun.com:68ef12cbbb64aae5519624bb/benyue-mini.git",
+    "url": "https://codeup.aliyun.com/68ef12cbbb64aae5519624bb/benyue-mini.git",
+    "homepage": "https://codeup.aliyun.com/68ef12cbbb64aae5519624bb/benyue-mini"
+  },
+  "user": {
+    "avatar_url": "https://tcs-devops.aliyuncs.com/thumbnail/113990ed280952f7c5d9e854a562ce7fdc5e/w/100/h/100",
+    "name": "\u5c27\u8c37@\u84dd\u5929\u667a\u901a",
+    "aliyun_pk": "1501550877188936",
+    "extern_uid": "66d29499ab4680a50304750b",
+    "username": "aliyun:aliyun2271383206_d$7"
+  },
+  "version": "new",
+  "object_kind": "merge_request"
+}
