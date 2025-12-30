@@ -72,6 +72,18 @@ class MergeRequestHandler:
             logger.warn(f"Invalid event type: {self.event_type}. Only 'merge_request' event is supported now.")
             return []
 
+        # 优先使用 Yunxiao OpenAPI (GetCompare)
+        if self.organization_id:
+            try:
+                target_branch = self.object_attributes.get('target_branch')
+                source_branch = self.object_attributes.get('source_branch')
+                if target_branch and source_branch:
+                    changes = self.repository_compare(target_branch, source_branch)
+                    if changes:
+                        return changes
+            except Exception as e:
+                logger.error(f"Failed to get MR changes from Yunxiao using GetCompare: {e}")
+
         # Gitlab merge request changes API可能存在延迟，多次尝试
         max_retries = 3  # 最大重试次数
         retry_delay = 10  # 重试间隔时间（秒）
@@ -102,6 +114,68 @@ class MergeRequestHandler:
 
         logger.warning(f"Max retries ({max_retries}) reached. Changes is still empty.")
         return []  # 达到最大重试次数后返回空列表
+
+    def repository_compare(self, before: str, after: str):
+        # 比较两个提交/分支之间的差异
+        # 优先使用 Yunxiao OpenAPI
+        if self.organization_id:
+             url = f"{self.gitlab_url.rstrip('/')}/oapi/v1/codeup/organizations/{self.organization_id}/repositories/{self.project_id}/compares"
+             headers = {
+                'x-yunxiao-token': self.gitlab_token, # gitlab_token holds the Yunxiao token
+                'Content-Type': 'application/json'
+             }
+             params = {
+                 'from': before,
+                 'to': after
+             }
+             response = requests.get(url, headers=headers, params=params, verify=False)
+             logger.debug(f"Get compare response from Yunxiao {url} headers:{headers}  params:{params}: {response.status_code}")
+             if response.status_code == 200:
+                 try:
+                     if not response.text:
+                        logger.warn("Yunxiao API returned empty body for repository_compare")
+                        return []
+                     
+                     # Debug logging for raw response (can be verbose, remove in production if needed)
+                     logger.debug(f"Raw Yunxiao Compare Response: {response.text[:1000]}")
+                        
+                     data = response.json()
+                 except Exception as e:
+                     logger.error(f"Failed to decode JSON from Yunxiao: {e}, Response: {response.text}")
+                     return []
+
+                 # 云效API返回结构 check
+                 # 文档示例 directly returning object with "diffs" key.
+                 # 但也可能包裹在 result 中
+                 diffs = []
+                 if data.get('result'):
+                     diffs = data.get('result', {}).get('diffs', [])
+                 else:
+                     diffs = data.get('diffs', [])
+                 
+                 # 转换 camelCase keys 到 snake_case 以兼容 filter_changes
+                 # Yunxiao: newPath, deletedFile, diff
+                 # GitLab expects: new_path, deleted_file, diff
+                 converted_diffs = []
+                 for item in diffs:
+                     converted_item = item.copy()
+                     if 'newPath' in item:
+                         converted_item['new_path'] = item['newPath']
+                     if 'oldPath' in item:
+                         converted_item['old_path'] = item['oldPath']
+                     if 'deletedFile' in item:
+                         converted_item['deleted_file'] = item['deletedFile']
+                     if 'renamedFile' in item:
+                         converted_item['renamed_file'] = item['renamedFile']
+                     if 'newFile' in item:
+                         converted_item['new_file'] = item['newFile']
+                     converted_diffs.append(converted_item)
+                 
+                 return converted_diffs
+             else:
+                 logger.warn(f"Failed to get compare from Yunxiao: {response.status_code}, {response.text}")
+                 # Fallthrough to GitLab API compatibility attempt?
+        return []
 
     def get_merge_request_commits(self) -> list:
         # 检查是否为 Merge Request Hook 事件

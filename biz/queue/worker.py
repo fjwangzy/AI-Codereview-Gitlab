@@ -473,8 +473,9 @@ def handle_yunxiao_push_event(webhook_data: dict, yunxiao_token: str, yunxiao_ur
             # 将review结果提交到Notes
             handler.add_push_notes(f'Auto Review Result: \n{review_result}')
 
+        project_name = webhook_data.get('project', {}).get('name') or webhook_data.get('repository', {}).get('name')
         event_manager['push_reviewed'].send(PushReviewEntity(
-            project_name=webhook_data['project']['name'],
+            project_name=project_name,
             author=webhook_data.get('user_name', ''),
             branch=webhook_data.get('ref', '').replace('refs/heads/', ''),
             updated_at=int(datetime.now().timestamp()),  # 当前时间
