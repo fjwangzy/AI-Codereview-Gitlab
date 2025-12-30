@@ -40,6 +40,7 @@ class MergeRequestHandler:
         self.gitlab_url = gitlab_url
         self.event_type = None
         self.project_id = None
+        self.organization_id = None
         self.action = None
         self.parse_event_type()
 
@@ -55,6 +56,15 @@ class MergeRequestHandler:
         self.merge_request_iid = merge_request.get('iid')
         self.project_id = merge_request.get('target_project_id')
         self.action = merge_request.get('action')
+        
+        # 提取 organization_id
+        # 尝试从 source.web_url 或 target.web_url 解析
+        target = merge_request.get('target', {})
+        web_url = target.get('web_url') or target.get('http_url', '')
+        if web_url:
+             match = re.search(r'codeup\.aliyun\.com/([^/]+)/', web_url)
+             if match:
+                 self.organization_id = match.group(1)
 
     def get_merge_request_changes(self) -> list:
         # 检查是否为 Merge Request Hook 事件
@@ -98,7 +108,34 @@ class MergeRequestHandler:
         if self.event_type != 'merge_request':
             return []
 
-        # 调用 GitLab API 获取 Merge Request 的 commits
+        # 如果能获取到 organization_id，优先使用 Yunxiao OpenAPI
+        if self.organization_id:
+             url = f"{self.gitlab_url.rstrip('/')}/oapi/v1/codeup/organizations/{self.organization_id}/repositories/{self.project_id}/changeRequests/{self.merge_request_iid}/commits"
+             headers = {
+                'x-yunxiao-token': self.gitlab_token, # gitlab_token holds the Yunxiao token
+                'Content-Type': 'application/json'
+             }
+             response = requests.get(url, headers=headers, verify=False)
+             logger.debug(f"Get MR commits response from Yunxiao {url}: {response.status_code}, {response.text}")
+             if response.status_code == 200:
+                 # Yunxiao API 返回的通常是 { "result": [...], "success": true } 或直接 list?
+                 # 根据 GetChangeRequest 风格，可能是直接返回对象或 result。
+                 # 假设 commits 列表在 result 字段中，或者直接返回列表。
+                 # 查看文档风格，通常是 `result` 包含数据。但 GetChangeRequest 示例直接返回对象。
+                 # 列表接口通常返回 `result` 数组。
+                 data = response.json()
+                 if isinstance(data, list):
+                     return data
+                 elif data.get('result'):
+                     return data.get('result')
+                     
+                 # Fallback if structure is unknown, maybe it matches GitLab structure if direct list
+                 return data
+             else:
+                 logger.warn(f"Failed to get MR commits from Yunxiao: {response.status_code}, {response.text}")
+                 # Fallthrough to GitLab API compatibility attempt?
+
+        # 调用 GitLab API 获取 Merge Request 的 commits (Fallback or if no Org ID)
         url = urljoin(f"{self.gitlab_url}/",
                       f"api/v4/projects/{self.project_id}/merge_requests/{self.merge_request_iid}/commits")
         headers = {
@@ -113,7 +150,57 @@ class MergeRequestHandler:
             logger.warn(f"Failed to get commits: {response.status_code}, {response.text}")
             return []
 
+    def get_yunxiao_merge_request_details(self):
+        # 获取云效 MR 详情，用于获取 patchSetBizId 等信息
+        if not self.organization_id:
+            return None
+        
+        url = f"{self.gitlab_url.rstrip('/')}/oapi/v1/codeup/organizations/{self.organization_id}/repositories/{self.project_id}/changeRequests/{self.merge_request_iid}"
+        headers = {
+            'x-yunxiao-token': self.gitlab_token,
+            'Content-Type': 'application/json'
+        }
+        response = requests.get(url, headers=headers, verify=False)
+        logger.debug(f"Get MR details from Yunxiao: {response.status_code}")
+        if response.status_code == 200:
+            result = response.json().get('result') # 假设返回结构中包含 result
+            if not result:
+                result = response.json() # 或者直接是对象
+            return result
+        return None
+
     def add_merge_request_notes(self, review_result):
+        # 添加评论到 Merge Request
+        # 优先使用 Yunxiao OpenAPI
+        if self.organization_id:
+            mr_details = self.get_yunxiao_merge_request_details()
+            patch_set_biz_id = None
+            if mr_details and mr_details.get('related_patchset'):
+                patch_set_biz_id = mr_details.get('related_patchset', {}).get('patchSetBizId')
+            
+            # 如果获取到了 patchSetBizId，则使用 Yunxiao API
+            if patch_set_biz_id:
+                url = f"{self.gitlab_url.rstrip('/')}/oapi/v1/codeup/organizations/{self.organization_id}/repositories/{self.project_id}/changeRequests/{self.merge_request_iid}/comments"
+                headers = {
+                    'x-yunxiao-token': self.gitlab_token,
+                    'Content-Type': 'application/json'
+                }
+                data = {
+                    "comment_type": "GLOBAL_COMMENT",
+                    "content": review_result,
+                    "draft": False,
+                    "resolved": False,
+                    "patchset_biz_id": patch_set_biz_id
+                }
+                response = requests.post(url, headers=headers, json=data, verify=False)
+                logger.debug(f"Add comment to MR {self.merge_request_iid} (Yunxiao): {response.status_code}, {response.text}")
+                if response.status_code == 200:
+                    logger.info("Comment successfully added to merge request (Yunxiao).")
+                    return
+                else:
+                    logger.warn(f"Failed to add comment via Yunxiao API: {response.status_code}, {response.text}. Fallback to GitLab API.")
+
+        # Fallback to GitLab API
         url = urljoin(f"{self.gitlab_url}/",
                       f"api/v4/projects/{self.project_id}/merge_requests/{self.merge_request_iid}/notes")
         headers = {
@@ -157,6 +244,7 @@ class PushHandler:
         self.gitlab_url = gitlab_url
         self.event_type = None
         self.project_id = None
+        self.organization_id = None
         self.branch_name = None
         self.commit_list = []
         self.parse_event_type()
@@ -175,6 +263,15 @@ class PushHandler:
             self.project_id = self.webhook_data.get('project', {}).get('id')
         self.branch_name = self.webhook_data.get('ref', '').replace('refs/heads/', '')
         self.commit_list = self.webhook_data.get('commits', [])
+        
+        # 提取 organization_id
+        # 尝试从 git_http_url 中解析: https://codeup.aliyun.com/{org_id}/{repo_name}.git
+        repository = self.webhook_data.get('repository', {})
+        git_url = repository.get('git_http_url') or repository.get('url', '')
+        if git_url:
+            match = re.search(r'codeup\.aliyun\.com/([^/]+)/', git_url)
+            if match:
+                self.organization_id = match.group(1)
 
     def get_push_commits(self) -> list:
         # 检查是否为 Push 事件
@@ -226,32 +323,78 @@ class PushHandler:
             logger.error(f"Failed to add comment: {response.status_code}")
             logger.error(response.text)
 
-    def __repository_commits(self, ref_name: str = "", since: str = "", until: str = "", pre_page: int = 100,
-                             page: int = 1):
-        # 获取仓库提交信息
-        url = f"{urljoin(f'{self.gitlab_url}/', f'api/v4/projects/{self.project_id}/repository/commits')}?ref_name={ref_name}&since={since}&until={until}&per_page={pre_page}&page={page}"
-        headers = {
-            'Private-Token': self.gitlab_token
-        }
-        response = requests.get(url, headers=headers, verify=False)
-        logger.debug(
-            f"Get commits response from Yunxiao/GitLab for repository_commits: {response.status_code}, {response.text}, URL: {url}")
+    def get_yunxiao_commit(self, commit_sha: str):
+        # 使用 Yunxiao OpenAPI 获取单个提交详情
+        # GET https://{domain}/oapi/v1/codeup/organizations/{organizationId}/repositories/{repositoryId}/commits/{sha}
+        if not self.organization_id:
+            logger.warn("Organization ID not found, cannot call Yunxiao API.")
+            return None
 
+        url = f"{self.gitlab_url.rstrip('/')}/oapi/v1/codeup/organizations/{self.organization_id}/repositories/{self.project_id}/commits/{commit_sha}"
+        
+        # Yunxiao token 需要在 header 'x-yunxiao-token' 或者 'Authorization' ? 
+        # 文档参数示例: x-yunxiao-token: pt-0fh3****0fbG_35af****0484
+        # self.gitlab_token 这里实际上存的是 yunxiao_token
+        headers = {
+            'x-yunxiao-token': self.gitlab_token,
+            'Content-Type': 'application/json'
+        }
+        
+        response = requests.get(url, headers=headers, verify=False)
+        logger.debug(f"Get commit response from Yunxiao: {response.status_code}, {response.text}, URL: {url}")
+        
         if response.status_code == 200:
             return response.json()
         else:
-            logger.warn(
-                f"Failed to get commits for ref {ref_name}: {response.status_code}, {response.text}")
-            return []
+             logger.warn(f"Failed to get commit {commit_sha}: {response.status_code}, {response.text}")
+             return None
 
     def get_parent_commit_id(self, commit_id: str) -> str:
-        commits = self.__repository_commits(ref_name=commit_id, pre_page=1, page=1)
-        if commits and commits[0].get('parent_ids', []):
-            return commits[0].get('parent_ids', [])[0]
+        # 优先使用 Yunxiao OpenAPI
+        commit_info = self.get_yunxiao_commit(commit_id)
+        if commit_info and commit_info.get('result'):
+             # Yunxiao API 响应通常包裹在 result 或直接返回对象，查看文档示例是直接返回对象
+             # 但有时会有 result 字段 wrapping，文档示例直接是 object。
+             # 假设直接是 object
+             data = commit_info
+             parent_ids = data.get('parentIds', [])
+             if parent_ids:
+                 return parent_ids[0]
+        elif commit_info and commit_info.get('parentIds'):
+             return commit_info.get('parentIds')[0]
+             
+        # Fallback to GitLab API mechanism if Yunxiao API fails or structure doesn't match
+        # 注意：如果 Yunxiao 不支持 GitLab repository/commits 接口，这里会失败
         return ""
 
     def repository_compare(self, before: str, after: str):
         # 比较两个提交之间的差异
+        # 优先使用 Yunxiao OpenAPI
+        if self.organization_id:
+             url = f"{self.gitlab_url.rstrip('/')}/oapi/v1/codeup/organizations/{self.organization_id}/repositories/{self.project_id}/compares"
+             headers = {
+                'x-yunxiao-token': self.gitlab_token, # gitlab_token holds the Yunxiao token
+                'Content-Type': 'application/json'
+             }
+             params = {
+                 'from': before,
+                 'to': after
+             }
+             response = requests.get(url, headers=headers, params=params, verify=False)
+             logger.debug(f"Get compare response from Yunxiao {url}: {response.status_code}")
+             if response.status_code == 200:
+                 data = response.json()
+                 # 云效API返回结构 check
+                 # 文档示例 directly returning object with "diffs" key.
+                 # 但也可能包裹在 result 中
+                 if data.get('result'):
+                     return data.get('result', {}).get('diffs', [])
+                 return data.get('diffs', [])
+             else:
+                 logger.warn(f"Failed to get compare from Yunxiao: {response.status_code}, {response.text}")
+                 # Fallthrough to GitLab API compatibility attempt?
+
+        # Fallback to GitLab API
         url = f"{urljoin(f'{self.gitlab_url}/', f'api/v4/projects/{self.project_id}/repository/compare')}?from={before}&to={after}"
         headers = {
             'Private-Token': self.gitlab_token
