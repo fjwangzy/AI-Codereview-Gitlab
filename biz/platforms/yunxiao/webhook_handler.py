@@ -411,9 +411,18 @@ class PushHandler:
                  'to': after
              }
              response = requests.get(url, headers=headers, params=params, verify=False)
-             logger.debug(f"Get compare response from Yunxiao {url}: {response.status_code}")
+             logger.debug(f"Get compare response from Yunxiao {url} params:{params}: {response.status_code}")
              if response.status_code == 200:
-                 data = response.json()
+                 try:
+                     if not response.text:
+                        logger.warn("Yunxiao API returned empty body for repository_compare")
+                        return []
+                        
+                     data = response.json()
+                 except Exception as e:
+                     logger.error(f"Failed to decode JSON from Yunxiao: {e}, Response: {response.text}")
+                     return []
+
                  # 云效API返回结构 check
                  # 文档示例 directly returning object with "diffs" key.
                  # 但也可能包裹在 result 中
