@@ -410,22 +410,43 @@ class PushHandler:
             logger.error("Last commit ID not found.")
             return
 
-        url = urljoin(f"{self.gitlab_url}/",
-                      f"api/v4/projects/{self.project_id}/repository/commits/{last_commit_id}/comments")
-        headers = {
-            'Private-Token': self.gitlab_token,
-            'Content-Type': 'application/json'
-        }
-        data = {
-            'note': message
-        }
-        response = requests.post(url, headers=headers, json=data, verify=False)
-        logger.debug(f"Add comment to commit {last_commit_id}: {response.status_code}, {response.text}")
-        if response.status_code == 201:
-            logger.info("Comment successfully added to push commit.")
-        else:
-            logger.error(f"Failed to add comment: {response.status_code}")
-            logger.error(response.text)
+        # 优先使用 Yunxiao OpenAPI
+        if self.organization_id:
+            logger.info(f"Adding comment to Yunxiao commit {last_commit_id}")
+            url = f"{self.gitlab_url.rstrip('/')}/oapi/v1/codeup/organizations/{self.organization_id}/repositories/{self.project_id}/commits/{last_commit_id}/comments"
+            headers = {
+                'x-yunxiao-token': self.gitlab_token,
+                'Content-Type': 'application/json'
+            }
+            # 注意: Yunxiao API 参数 key 是 'content' 而不是 'note'
+            payload = {
+                'content': message
+            }
+            response = requests.post(url, headers=headers, json=payload, verify=False)
+            logger.debug(f"Add comment to commit {last_commit_id} response (Yunxiao) {url}: {response.status_code}, {response.text}")
+            if response.status_code in [200, 201]:
+                logger.info("Comment successfully added to push commit (Yunxiao).")
+                return
+            else:
+                logger.warn(f"Failed to add comment via Yunxiao API: {response.status_code}, {response.text}")
+
+        # # Fallback to GitLab API
+        # url = urljoin(f"{self.gitlab_url}/",
+        #               f"api/v4/projects/{self.project_id}/repository/commits/{last_commit_id}/comments")
+        # headers = {
+        #     'Private-Token': self.gitlab_token,
+        #     'Content-Type': 'application/json'
+        # }
+        # data = {
+        #     'note': message
+        # }
+        # response = requests.post(url, headers=headers, json=data, verify=False)
+        # logger.debug(f"Add comment to commit {last_commit_id} (GitHub/GitLab) {url}: {response.status_code}, {response.text}")
+        # if response.status_code == 201:
+        #     logger.info("Comment successfully added to push commit.")
+        # else:
+        #     logger.error(f"Failed to add comment: {response.status_code}")
+        #     logger.error(response.text)
 
     def get_yunxiao_commit(self, commit_sha: str):
         # 使用 Yunxiao OpenAPI 获取单个提交详情
