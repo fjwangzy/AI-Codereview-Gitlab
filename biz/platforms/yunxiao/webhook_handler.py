@@ -417,6 +417,9 @@ class PushHandler:
                      if not response.text:
                         logger.warn("Yunxiao API returned empty body for repository_compare")
                         return []
+                     
+                     # Debug logging for raw response (can be verbose, remove in production if needed)
+                     logger.debug(f"Raw Yunxiao Compare Response: {response.text[:1000]}")
                         
                      data = response.json()
                  except Exception as e:
