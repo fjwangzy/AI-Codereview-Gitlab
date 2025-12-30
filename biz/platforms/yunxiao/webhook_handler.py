@@ -124,13 +124,43 @@ class MergeRequestHandler:
                  # 查看文档风格，通常是 `result` 包含数据。但 GetChangeRequest 示例直接返回对象。
                  # 列表接口通常返回 `result` 数组。
                  data = response.json()
+                 commits = []
                  if isinstance(data, list):
-                     return data
+                     commits = data
                  elif data.get('result'):
-                     return data.get('result')
+                     commits = data.get('result')
+                 else:
+                     commits = data if isinstance(data, list) else []
+
+                 # 转换 camelCase keys 到 snake_case 以兼容 GitLab 格式
+                 converted_commits = []
+                 for commit in commits:
+                     new_commit = commit.copy()
+                     # Basic fields
+                     if 'authorName' in commit:
+                         new_commit['author_name'] = commit['authorName']
+                     if 'authorEmail' in commit:
+                         new_commit['author_email'] = commit['authorEmail']
+                     if 'authoredDate' in commit:
+                         new_commit['authored_date'] = commit['authoredDate']
+                     if 'committerName' in commit:
+                         new_commit['committer_name'] = commit['committerName']
+                     if 'committerEmail' in commit:
+                         new_commit['committer_email'] = commit['committerEmail']
+                     if 'committedDate' in commit:
+                         new_commit['committed_date'] = commit['committedDate']
+                     if 'shortId' in commit:
+                         new_commit['short_id'] = commit['shortId']
+                     if 'parentIds' in commit:
+                         new_commit['parent_ids'] = commit['parentIds']
+                     if 'webUrl' in commit:
+                         new_commit['web_url'] = commit['webUrl']
+                     # ensure title exists
+                     if 'title' not in new_commit and 'message' in new_commit:
+                         new_commit['title'] = new_commit['message'].split('\n')[0]
                      
-                 # Fallback if structure is unknown, maybe it matches GitLab structure if direct list
-                 return data
+                     converted_commits.append(new_commit)
+                 return converted_commits
              else:
                  logger.warn(f"Failed to get MR commits from Yunxiao: {response.status_code}, {response.text}")
                  # Fallthrough to GitLab API compatibility attempt?
@@ -387,9 +417,31 @@ class PushHandler:
                  # 云效API返回结构 check
                  # 文档示例 directly returning object with "diffs" key.
                  # 但也可能包裹在 result 中
+                 diffs = []
                  if data.get('result'):
-                     return data.get('result', {}).get('diffs', [])
-                 return data.get('diffs', [])
+                     diffs = data.get('result', {}).get('diffs', [])
+                 else:
+                     diffs = data.get('diffs', [])
+                 
+                 # 转换 camelCase keys 到 snake_case 以兼容 filter_changes
+                 # Yunxiao: newPath, deletedFile, diff
+                 # GitLab expects: new_path, deleted_file, diff
+                 converted_diffs = []
+                 for item in diffs:
+                     converted_item = item.copy()
+                     if 'newPath' in item:
+                         converted_item['new_path'] = item['newPath']
+                     if 'oldPath' in item:
+                         converted_item['old_path'] = item['oldPath']
+                     if 'deletedFile' in item:
+                         converted_item['deleted_file'] = item['deletedFile']
+                     if 'renamedFile' in item:
+                         converted_item['renamed_file'] = item['renamedFile']
+                     if 'newFile' in item:
+                         converted_item['new_file'] = item['newFile']
+                     converted_diffs.append(converted_item)
+                 
+                 return converted_diffs
              else:
                  logger.warn(f"Failed to get compare from Yunxiao: {response.status_code}, {response.text}")
                  # Fallthrough to GitLab API compatibility attempt?
