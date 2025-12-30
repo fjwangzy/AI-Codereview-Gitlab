@@ -508,7 +508,8 @@ def handle_yunxiao_merge_request_event(webhook_data: dict, yunxiao_token: str, y
         object_attributes = webhook_data.get('object_attributes', {})
         is_draft = object_attributes.get('draft') or object_attributes.get('work_in_progress')
         if is_draft:
-            msg = f"[通知] MR为草稿（draft），未触发AI审查。\n项目: {webhook_data['project']['name']}\n作者: {webhook_data['user']['name']}\n源分支: {object_attributes.get('source_branch')}\n目标分支: {object_attributes.get('target_branch')}\n链接: {object_attributes.get('url')}"
+            project_name = webhook_data.get('project', {}).get('name') or webhook_data.get('repository', {}).get('name')
+            msg = f"[通知] MR为草稿（draft），未触发AI审查。\n项目: {project_name}\n作者: {webhook_data['user']['name']}\n源分支: {object_attributes.get('source_branch')}\n目标分支: {object_attributes.get('target_branch')}\n链接: {object_attributes.get('url')}"
             notifier.send_notification(content=msg)
             logger.info("MR为draft，仅发送通知，不触发AI review。")
             return
@@ -525,7 +526,7 @@ def handle_yunxiao_merge_request_event(webhook_data: dict, yunxiao_token: str, y
         # 检查last_commit_id是否已经存在，如果存在则跳过处理
         last_commit_id = object_attributes.get('last_commit', {}).get('id', '')
         if last_commit_id:
-            project_name = webhook_data['project']['name']
+            project_name = webhook_data.get('project', {}).get('name') or webhook_data.get('repository', {}).get('name')
             source_branch = object_attributes.get('source_branch', '')
             target_branch = object_attributes.get('target_branch', '')
             
@@ -562,7 +563,7 @@ def handle_yunxiao_merge_request_event(webhook_data: dict, yunxiao_token: str, y
         # dispatch merge_request_reviewed event
         event_manager['merge_request_reviewed'].send(
             MergeRequestReviewEntity(
-                project_name=webhook_data['project']['name'],
+                project_name=webhook_data.get('project', {}).get('name') or webhook_data.get('repository', {}).get('name'),
                 author=webhook_data['user']['name'],
                 source_branch=webhook_data['object_attributes']['source_branch'],
                 target_branch=webhook_data['object_attributes']['target_branch'],

@@ -81,6 +81,18 @@ class TestYunxiaoPushHandler(TestCase):
         expected_url = f"{self.yunxiao_url}/oapi/v1/codeup/organizations/my-org/repositories/123/compares"
         mock_get.assert_called_with(expected_url, headers={'x-yunxiao-token': 'test_token', 'Content-Type': 'application/json'}, params={'from': 'sha1', 'to': 'sha2'}, verify=False)
 
+    @patch('requests.post')
+    def test_add_push_notes(self, mock_post):
+        # Mock Yunxiao CreateCommitComment response
+        mock_response = MagicMock()
+        mock_response.status_code = 201
+        mock_post.return_value = mock_response
+
+        self.handler.add_push_notes("test comment")
+
+        expected_url = f"{self.yunxiao_url}/oapi/v1/codeup/organizations/my-org/repositories/123/commits/commit1/comments"
+        mock_post.assert_called_with(expected_url, headers={'x-yunxiao-token': 'test_token', 'Content-Type': 'application/json'}, json={'content': 'test comment'}, verify=False)
+
 
 class TestYunxiaoMergeRequestHandler(TestCase):
     def setUp(self):
